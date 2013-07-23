@@ -11,19 +11,45 @@ from collections import deque
 PASSWORD_FILE = "puush-password.txt"
 EMAIL_FILE = "puush-email.txt"
 
-# Adds all the picture links to a list of URLs.
+# Gets links to public, private, and gallery
+def getPools(br):
+    return [link for link in br.links(url_regex = '\?pool=\d+')]
+
+# Gets the pages on each pool
+def getPagesForPool(br, pool):
+    br.open(pool.url)
+    poolurl = br.geturl()
+    pages = []
+    for i in range(1, int(getLastPageNum(br)) + 1):
+        pages.append(poolurl + "&page=" + str(i))
+    return pages
+
+# Gets all pages
+def getPages(br):
+    pages = []
+    for p in getPools(br):
+        pages.extend(getPagesForPool(br, p))
+    return pages
+
+
+# Gets all the picture links on a page.
 def getLinksOnPage(br, page):
     br.open(page)
-    for l in br.links(url_regex = 'view'): 
-        urls.append(l.url)
+    return [l.url for l in br.links(url_regex = 'puu')]
 
 # Gets the number of the last page of pictures so we know when to stop.
 def getLastPageNum(br):
-    pages = br.links(url_regex = '\?page=')
+    pages = br.links(url_regex = 'page=')
     q = deque(pages, maxlen = 2)
-    q.pop()
-    lastpage = q.pop()
-    return lastpage.url.split('=')[-1]
+    assert (len(q) != 1)
+    if (len(q) == 0): 
+        # there is only one page of screenshots
+        return 1
+    else:
+        # take the second to last link marked "page"
+        q.pop()
+        lastpage = q.pop()
+        return lastpage.url.split('=')[-1]
 
 with open(EMAIL_FILE, 'r') as e:
     email = e.readline().strip()
@@ -56,15 +82,9 @@ br.form["email"] = email
 br.form["password"] = password
 br.submit()
 
-# Get names of all puush pages
-pages = []
-for i in range(1, int(getLastPageNum(br)) + 1):
-    pages.append("http://puush.me/account?page=" + str(i))
-
-# Get all picture URLs
 urls = []
-for page in pages:
-    getLinksOnPage(br, page)
+for page in getPages(br):
+    urls.extend(getLinksOnPage(br, page))
 
 # Open all URLs
 for l in urls:
