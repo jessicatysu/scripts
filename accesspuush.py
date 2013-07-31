@@ -2,14 +2,47 @@ import mechanize
 import cookielib
 import urllib2
 from collections import deque
+from time import sleep
 
 # puush.me said they would delete all files from their system that haven't
 # been accessed in the past month.  this script automatically accesses all
 # your puush files
 
 # Put your email and password in these files
-PASSWORD_FILE = "puush-password.txt"
-EMAIL_FILE = "puush-email.txt"
+PASSWORD_FILE = "/Users/jessica/Dropbox/scripts/puush-password.txt"
+EMAIL_FILE = "/Users/jessica/Dropbox/scripts/puush-email.txt"
+ERR_LOG = "/Users/jessica/Dropbox/scripts/puush-err.txt"
+
+## Rate limits:
+# I think you can open 350 pages before it complains, but make the program
+# pause every 170 pages to be safe
+RATE_LIMIT = 170
+
+# Number of pages that have been opened
+numOpens = 0
+
+# Logs an error message
+err = open(ERR_LOG, "w")
+def errlog(string):
+    print string
+    err.write(string + "\n")
+
+# Opens a page
+def openPage(link):
+    global numOpens
+    if (numOpens % RATE_LIMIT == RATE_LIMIT - 1):
+        print "Rate limit exceeded ... pausing for 1 hour"
+        sleep(3600)
+    try:
+        print "Trying to open " + link
+        numOpens += 1
+        br.open(link)
+        print "Opened " + link
+        sleep(2)
+    except:
+        errlog("Cannot open " + link + " ... pausing for 1 hour")
+        sleep(3600)
+        openPage(link)
 
 # Gets links to public, private, and gallery
 def getPools(br):
@@ -17,7 +50,7 @@ def getPools(br):
 
 # Gets the pages on each pool
 def getPagesForPool(br, pool):
-    br.open(pool.url)
+    openPage(pool.url)
     poolurl = br.geturl()
     pages = []
     for i in range(1, int(getLastPageNum(br)) + 1):
@@ -34,7 +67,7 @@ def getPages(br):
 
 # Gets all the picture links on a page.
 def getLinksOnPage(br, page):
-    br.open(page)
+    openPage(page)
     return [l.url for l in br.links(url_regex = 'puu')]
 
 # Gets the number of the last page of pictures so we know when to stop.
@@ -73,10 +106,11 @@ br.set_handle_robots(False)
 br.set_handle_refresh(mechanize._http.HTTPRefreshProcessor(), max_time=1)
 
 # User-Agent
-br.addheaders = [('User-agent', 'Mozilla/5.0 (X11; U; Linux i686; en-US; rv:1.9.0.1) Gecko/2008071615 Fedora/3.0.1-1.fc9 Firefox/3.0.1')]
+br.addheaders = [('User-agent', 'Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 6.1; Trident/6.0)')]
+
 
 # Log into site
-br.open("http://puush.me/login")
+openPage("http://puush.me/login")
 br.select_form(nr=0)
 br.form["email"] = email
 br.form["password"] = password
@@ -88,5 +122,6 @@ for page in getPages(br):
 
 # Open all URLs
 for l in urls:
-    br.open(l)
-    print br.geturl()
+    openPage(l)
+
+err.close()
